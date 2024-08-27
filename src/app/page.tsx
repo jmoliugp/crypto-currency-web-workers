@@ -45,7 +45,7 @@ function CryptoCurrency({ currency, token }: CryptoCurrencyProps) {
 export default function Home() {
   const workerRef = useRef<Worker>();
   const [streamEnabled, setStreamEnabled] = useState(false);
-  const [currencies, setCurrencies] = useState<Record<CryptoToken, number>>({
+  const [currencyMap, setCurrencyMap] = useState<Record<CryptoToken, number>>({
     [CryptoToken.Bitcoin]: 0,
     [CryptoToken.Ethereum]: 0,
     [CryptoToken.Litecoin]: 0,
@@ -58,7 +58,7 @@ export default function Home() {
     });
 
     workerRef.current.onmessage = (event) => {
-      setCurrencies((prev) => {
+      setCurrencyMap((prev) => {
         const newState = { ...prev, ...event.data };
         return newState;
       });
@@ -128,10 +128,15 @@ export default function Home() {
             <Switch checked={streamEnabled} onCheckedChange={toggleSwitch} />
           </div>
           <div>
-            <CryptoCurrency token={CryptoToken.Bitcoin} currency={68021} />
-            <CryptoCurrency token={CryptoToken.Ethereum} currency={42552} />
-            <CryptoCurrency token={CryptoToken.Litecoin} currency={6332} />
-            <CryptoCurrency token={CryptoToken.Monero} currency={806} />
+            {Object.keys(currencyMap).map((key) => {
+              return (
+                <CryptoCurrency
+                  key={key}
+                  token={key as CryptoToken}
+                  currency={currencyMap[key as CryptoToken]}
+                />
+              );
+            })}
           </div>
         </CardContent>
         <CardFooter>
