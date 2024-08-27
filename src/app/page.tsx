@@ -13,7 +13,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { CryptoWorkConfigT, WorkerMessageT } from "@/workers/types";
 
 enum CryptoToken {
   Bitcoin = "bitcoin",
@@ -42,8 +43,68 @@ function CryptoCurrency({ currency, token }: CryptoCurrencyProps) {
 }
 
 export default function Home() {
+  const workerRef = useRef<Worker>();
   const [streamEnabled, setStreamEnabled] = useState(false);
-  const toggle = () => setStreamEnabled((prev) => !prev);
+  const [currencyMap, setCurrencyMap] = useState<Record<CryptoToken, number>>({
+    [CryptoToken.Bitcoin]: 0,
+    [CryptoToken.Ethereum]: 0,
+    [CryptoToken.Litecoin]: 0,
+    [CryptoToken.Monero]: 0,
+  });
+
+  useEffect(() => {
+    workerRef.current = new Worker("/workers/crypto.js", {
+      type: "module",
+    });
+
+    workerRef.current.onmessage = (event) => {
+      setCurrencyMap((prev) => {
+        const newState = { ...prev, ...event.data };
+        return newState;
+      });
+    };
+
+    workerRef.current.onerror = (error) => {
+      console.error("Worker error: ", error);
+    };
+
+    return () => {
+      if (!workerRef.current) return;
+
+      workerRef.current.terminate();
+    };
+  }, []);
+
+  const startWorker = () => {
+    const workerMessage: WorkerMessageT<CryptoWorkConfigT> = {
+      type: "init",
+      payload: {
+        data: {
+          assets: Object.values(CryptoToken).join(","),
+        },
+      },
+    };
+
+    if (workerRef.current) workerRef.current.postMessage(workerMessage);
+  };
+
+  const stopWorker = () => {
+    const workerMessage: WorkerMessageT<CryptoWorkConfigT> = {
+      type: "stop",
+    };
+
+    if (workerRef.current) workerRef.current.postMessage(workerMessage);
+  };
+
+  const toggleSwitch = () =>
+    setStreamEnabled((prevState) => {
+      const isRunning = prevState;
+
+      if (isRunning) stopWorker();
+      if (!isRunning) startWorker();
+
+      return !isRunning;
+    });
 
   return (
     <div className="flex items-center justify-center w-screen h-screen">
@@ -64,13 +125,18 @@ export default function Home() {
                 {streamEnabled ? "On" : "Off"}
               </p>
             </div>
-            <Switch checked={streamEnabled} onCheckedChange={toggle} />
+            <Switch checked={streamEnabled} onCheckedChange={toggleSwitch} />
           </div>
           <div>
-            <CryptoCurrency token={CryptoToken.Bitcoin} currency={68021} />
-            <CryptoCurrency token={CryptoToken.Ethereum} currency={42552} />
-            <CryptoCurrency token={CryptoToken.Litecoin} currency={6332} />
-            <CryptoCurrency token={CryptoToken.Monero} currency={806} />
+            {Object.keys(currencyMap).map((key) => {
+              return (
+                <CryptoCurrency
+                  key={key}
+                  token={key as CryptoToken}
+                  currency={currencyMap[key as CryptoToken]}
+                />
+              );
+            })}
           </div>
         </CardContent>
         <CardFooter>
